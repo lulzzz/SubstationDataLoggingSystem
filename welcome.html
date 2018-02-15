@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<head>
+	<title> SDLS - Substation Data Logging System </title>
+	<link href="bootstrap/css/bootstrap.min.css" rel="stylesheet">
+	<script src="bootstrap/js/bootstrap.min.js"></script>
+	<script src="bootstrap/js/jquery.js"></script>
+	<link rel="stylesheet" href="datatables/css/jquery.dataTables.min.css">
+	<script type="text/javascript" src="datatables/js/jquery.dataTables.min.js"></script>
+	<script src="canvasjs/canvasjs-1.9.10-stable/canvasjs.min.js"></script>
+	<style>
+	 /* Dropdown Button */
+.dropbtn {
+    background-color: #4CAF50;
+    color: white;
+    padding: 16px;
+    font-size: 16px;
+    border: none;
+    cursor: pointer;
+}
+
+/* Dropdown button on hover & focus */
+.dropbtn:hover, .dropbtn:focus {
+    background-color: #3e8e41;
+}
+
+/* The container <div> - needed to position the dropdown content */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+/* Dropdown Content (Hidden by Default) */
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: #f9f9f9;
+    min-width: 160px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 1;
+}
+
+/* Links inside the dropdown */
+.dropdown-content a {
+    color: black;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+}
+
+/* Change color of dropdown links on hover */
+.dropdown-content a:hover {background-color: #f1f1f1}
+
+/* Show the dropdown menu (use JS to add this class to the .dropdown-content container when the user clicks on the dropdown button) */
+.show {display:block;} 
+</style>
+	<script language="JavaScript">
+		var key = "3debe0a5d6466f42afd958dfd2efa808eeaf3a384ca6d08fd9fb38b8fa3b9a22"
+		var latestReading = "";
+		var table = "";
+		var last24hrReading = {"status":"ok","result":[]};
+		var flag = 0;
+		var currKey = "R3925";
+		var currLen = 10;
+		var dps = [];
+		var chart = "";
+		var descdict = {
+			"R3913" : "Current average" ,
+			"R3929" : "Current, phase 1" ,
+			"R3943" : "Current, phase 2" ,
+			"R3957" : "Current, phase 3" ,
+			"R3909" : "Line to line average voltage" ,
+			"R3911" : "Line to neutral voltage" ,
+			"R3925" : "Voltage phase 1 to phase 2" ,
+			"R3939" : "Voltage phase 2 to phase 3" ,
+			"R3953" : "Voltage phase 3 to phase 1" ,
+			"R3927" : "Voltage phase 1 to neutral" ,
+			"R3941" : "Voltage phase 2 to neutral" ,
+			"R3955" : "phase 3 to neutral" ,
+			"R3903" : "Active power, total" ,
+			"R3919" : "Active power, phase 1" ,
+			"R3933" : "Active power, phase 2" ,
+			"R3947" : "Active power, phase 3" ,
+			"R3905" : "Reactive power, total" ,
+			"R3921" : "Reactive power, phase 1" ,
+			"R3935" : "Reactive power, phase 2" ,
+			"R3949" : "Reactive power, phase 3" ,
+			"R3901" : "Apparent power, total" ,
+			"R3917" : "Apparent power, phase 1" ,
+			"R3931" : "Apparent power, phase 2" ,
+			"R3945" : "Apparent power, phase 3" ,
+			"R3907" : "Power factor average" ,
+			"R3923" : "Power factor, phase 1" ,
+			"R3937" : "Power factor, phase 2" ,
+			"R3951" : "Power factor, phase 3" ,
+			"R3915" : "Frequency, Hz" ,
+			"R3861" : "Voltage THD, phase 1" ,
+			"R3863" : "Voltage THD, phase 2" ,
+			"R3865" : "Voltage THD, phase 3" ,
+			"R3867" : "Current THD, phase 1" ,
+			"R3869" : "Current THD, phase 2" ,
+			"R3871" : "Current THD, phase 3" ,
+			"R3959" : "Forward apparent energy" ,
+			"R3961" : "Forward active energy" ,
+			"R3963" : "Forward reactive inductive energy" ,
+			"R3965" : "Forward reactive capacitive energy" ,
+			"R3967" : "Reverse apparent energy" ,
+			"R3969" : "Reverse active energy" ,
+			"R3971" : "Reverse reactive inductive Energy" ,
+			"R3973" : "Reverse reactive capacitive Energy" ,
+			"R3975" : "Demand Present demand" ,
+			"R3977" : "Demand Rising demand" ,
+			"R3979" : "Maximum demand" ,
+			"R3881" : "Average load percentage" ,
+			"R3883" : "Percentage of phase 1 load" ,
+			"R3885" : "Percentage of phase 2 load" ,
+			"R3887" : "Percentage of phase 3 load" ,
+			"R3889" : "Load Unbalanced load" ,
+			"R3891" : "voltage Unbalanced voltage" ,
+			"R3993" : "hrs On hours" ,
+			"R3995" : "secs Forward run seconds" ,
+			"R3997" : "secs Reverse run seconds" ,
+			"R3999" : "Number of power interruptions" ,
+			"R3981" : "Maximum demand occurrence time"
+		};
+		var g = "";
+		var color = ['#003E00','#FFFFFF'];
+		var i = 0;
+		for(var i in descdict)
+		{
+			g = g+"<a onclick=\"displayLatestReading('"+i+"')\">"+descdict[i]+"</a>";
+			i+=1;
+		}
+		
+		function getLatestReading() {
+			getLatestReadingXmlHttp = new XMLHttpRequest();
+			var getLatestReadingurl = "https://substationdatalogger-jimsonmathew.c9users.io/pireadingslogger/getLatestReading/";
+			getLatestReadingXmlHttp.open("POST", getLatestReadingurl, false);
+			getLatestReadingXmlHttp.setRequestHeader("Content-type", "application/json");
+			getLatestReadingXmlHttp.onreadystatechange = function () { //Call a function when the state changes.
+				if(getLatestReadingXmlHttp.readyState!=4)
+				{
+					//document.getElementById("latestReadingInfoBox").className = "alert alert-info";
+					document.getElementById("latestReadingInfoBox").innerHTML="<strong>Info!</strong> Values are being updated. Make sure internet is available throughout fetching process.<Br>Fetching data..."
+				}
+			    else if (getLatestReadingXmlHttp.readyState==4 && getLatestReadingXmlHttp.status == 200) {
+			    	var timeleft = 60;
+						var downloadTimer = setInterval(function(){
+							document.getElementById("latestReadingInfoBox").innerHTML="<strong>Success!</strong>  All values are up-to-date <br> Next update to be fetched in "+--timeleft+" sec";
+						  if(timeleft <= 0)
+						    clearInterval(downloadTimer);
+						},1000);
+						document.getElementById("latestReadingInfoBox").className = "alert alert-success";
+			    	
+			        latestReading = JSON.parse(getLatestReadingXmlHttp.responseText);
+			        displayLatestReading(currKey);
+
+			    }
+			    else if(getLatestReadingXmlHttp.readyState==4 && getLatestReadingXmlHttp.status != 200)
+			    {
+			    	document.getElementById("latestReadingInfoBox").className = "alert alert-danger";
+			    	var timeleft = 60;
+						var downloadTimer = setInterval(function(){
+							document.getElementById("latestReadingInfoBox").innerHTML="<strong>Error!</strong> Latest data could not be fetched. Status code : "+getLatestReadingXmlHttp.status +"<br> Retrying in "+--timeleft+" sec";
+					
+						  if(timeleft <= 0)
+						    clearInterval(downloadTimer);
+						},1000);
+			    				    }
+			}
+			var getLatestReadingparameters = {
+			    "key": key
+			};
+		
+		  getLatestReadingXmlHttp.send(JSON.stringify(getLatestReadingparameters));
+		}
+		function displayLatestReading(key){
+			if (latestReading!={})
+			{
+
+				
+				currKey = key;
+				document.getElementById('latestvalue').innerHTML = latestReading["result"]["readings"][key];
+				document.getElementById('received_date').innerHTML = latestReading["result"]["date"]
+				document.getElementById('received_time').innerHTML = latestReading["result"]["time"]
+				if (descdict[key].length<20){
+					var temp = descdict[key];
+					for(var j = temp.length;j<=20;j++)
+						temp=temp+" ";
+					document.getElementById('disp_reg').innerHTML = temp+"<span class='caret'></span>"
+				}
+				else
+					document.getElementById('disp_reg').innerHTML = descdict[key].substring(0,17)+"... <span class='caret'></span>"
+				if (flag!=0)
+					update24HrData();
+				flag =1;
+			}
+		}
+		setInterval(getLatestReading, 60*1000);
+		var lreadings = []
+		function get24HrData()
+		{
+			getLatestReadingXmlHttp = new XMLHttpRequest();
+			var getLatestReadingurl = "https://substationdatalogger-jimsonmathew.c9users.io/pireadingslogger/get24hrReadings/";
+			getLatestReadingXmlHttp.open("POST", getLatestReadingurl, false);
+			getLatestReadingXmlHttp.setRequestHeader("Content-type", "application/json");
+			var count = 0
+			getLatestReadingXmlHttp.onreadystatechange = function () {
+				if (getLatestReadingXmlHttp.readyState==4 && getLatestReadingXmlHttp.status == 200) {
+			        last24hrReading = JSON.parse(getLatestReadingXmlHttp.responseText);
+			        temp = "";
+			        for (var i =0;i<last24hrReading["result"].length;i++)
+			        {
+			        	p = last24hrReading["result"][i];
+			        	lreadings.push(p)
+			        	temp+="<tr><td>"+p["date"]+"</td><td>"+p["time"]+"</td><td>"+p["readings"][currKey]+"</td></tr>"
+			        }
+			   
+			       	document.getElementById("tablebody").innerHTML=temp;
+
+			    }
+			}
+			var getLatestReadingparameters = {
+			    "key": key
+			};
+		
+		  getLatestReadingXmlHttp.send(JSON.stringify(getLatestReadingparameters));
+		}
+		var count = 0;
+		function update24HrData()
+		{
+
+			lreadings.unshift(latestReading["result"]);
+			lreadings.splice(lreadings.length-1,1);
+			dps.push({label:latestReading["result"]["time"].substring(0,5),y:latestReading["result"]["readings"][currKey]});
+			count+=1;
+			if(dps.length>currLen)
+				dps.splice(0,1);
+			chart = new CanvasJS.Chart("chartContainer",{
+				
+				axisX: {						
+					title: "Time",
+					titleFontSize:20,
+					titleFontFamily:"calibri",
+					labelFontSize:12,
+					labelFontWeight:"bold",
+					labelWrap :true
+				},
+				axisY: {						
+					title: "Live Readings ("+descdict[currKey]+")",
+					titleFontSize:20,
+					titleFontFamily:"calibri",
+					labelFontSize:12,
+					labelFontWeight:"bold"
+				},
+				data: [{
+					type: "line",
+					dataPoints : dps
+				}]
+			});
+			table.destroy();
+					temp = "";
+					var q = []
+			        for (var i =0;i<lreadings.length;i++)
+			        {
+			        	p = lreadings[i];
+			        	q.push([p["date"],p["time"],p["readings"][currKey]]);
+			        	temp+="<tr><td>"+p["date"]+"</td><td>"+p["time"]+"</td><td>"+p["readings"][currKey]+"</td></tr>"
+			      }
+
+			       	document.getElementById("tablebody").innerHTML=temp;
+			table = $('#latest24hrdata').DataTable(
+			{
+				"order":[[0,"desc"]],
+				"lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]],
+				"scrollY": "80vh",
+				"scrollCollapse":true
+			}
+				);
+			$('#latest24hrdata').on( 'length.dt', function ( e, settings, len ) {
+						console.log("hi"+len);
+					len = (len==-1)?lreadings.length:len;
+    				dps = [];
+    				currLen=len;
+    				for(var h=0;h<len;h++)
+    				{
+    					var p1 = lreadings[h];
+    					dps.push({label:p1["time"].substring(0,5),y:p1["readings"][currKey]});
+    				}
+    				dps.reverse();
+    				console.log(dps);
+    				chart = new CanvasJS.Chart("chartContainer",{
+				
+							axisX: {						
+								title: "Time",
+								titleFontSize:20,
+								titleFontFamily:"calibri",
+								labelFontSize:12,
+								labelFontWeight:"bold",
+								labelAutoFit:true
+							},
+							axisY: {						
+								title: "Live Readings ("+descdict[currKey]+")",
+								titleFontSize:20,
+								titleFontFamily:"calibri",
+								labelFontSize:12,
+								labelFontWeight:"bold"
+							},
+							data: [{
+								type: "line",
+								dataPoints : dps
+							}]
+						});
+    				chart.render();
+    });
+			
+			chart.render();
+		}
+		window.onclick = function(event) {
+			var dropdowns = document.getElementById("register_list");
+		  if (event.target.id=="disp_reg") {
+		    if (dropdowns.style.display=='block')
+		    	dropdowns.style.display="none";
+		    else
+		    	dropdowns.style.display="block";
+		  }
+		  else
+		  {
+		  	if (dropdowns.style.display=='block')
+		  		dropdowns.style.display="none";
+		  }
+		} 
+		
+		function OnLoadFn()
+		{
+			
+			chart = new CanvasJS.Chart("chartContainer",{
+				
+				axisX: {						
+					title: "Time",
+					titleFontSize:20,
+					titleFontFamily:"calibri",
+					labelFontSize:12,
+					labelFontWeight:"bold",
+					labelAutoFit:true
+				},
+				axisY: {						
+					title: "Live Readings ("+descdict[currKey]+")",
+					titleFontSize:20,
+					titleFontFamily:"calibri",
+					labelFontSize:12,
+					labelFontWeight:"bold"
+				},
+				data: [{
+					type: "line",
+					dataPoints : dps
+				}]
+			});
+			getLatestReading();
+			get24HrData();
+
+			for (var i =0;i<10;i++)
+			    {
+			        	var p = last24hrReading["result"][i];
+			        	dps.push({label:p["time"].substring(0,5),y:p["readings"][currKey]});
+			        }
+			dps.reverse();
+			chart.render();
+			$(document).ready(function() {
+    			table = $('#latest24hrdata').DataTable(
+    					{
+    						"order":[[0,"desc"]],
+    						"lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]],
+    						"scrollY": "57vh",
+							"scrollCollapse":true
+    					}
+    				);
+    			$('#latest24hrdata').on( 'length.dt', function ( e, settings, len ) {
+    				console.log("hii"+len);
+    				dps = [];
+    				len = (len==-1)?last24hrReading["result"].length:len;
+    				currLen = len;
+    				for(var h=0;h<len;h++)
+    				{
+    					var p1 = last24hrReading["result"][h];
+    					dps.push({label:p1["time"].substring(0,5),y:p1["readings"][currKey]});
+    				}
+    				dps.reverse();
+    				console.log(dps);
+    				chart = new CanvasJS.Chart("chartContainer",{
+				
+							axisX: {						
+								title: "Time",
+								titleFontSize:20,
+								titleFontFamily:"calibri",
+								labelFontSize:12,
+								labelFontWeight:"bold",
+								labelAutoFit:true
+							},
+							axisY: {						
+								title: "Live Readings ("+descdict[currKey]+")",
+								titleFontSize:20,
+								titleFontFamily:"calibri",
+								labelFontSize:12,
+								labelFontWeight:"bold"
+							},
+							data: [{
+								type: "line",
+								dataPoints : dps
+							}]
+						});
+    				chart.render();
+					} );	
+    			} 
+
+			);
+
+			
+		}
+		
+	</script>
+</head>
+<body onload="OnLoadFn();">
+	<nav class="navbar navbar-inverse navbar-fixed-top">
+      <div class="container-fluid">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="#">SDLS Web interface</a>
+        </div>
+        <div id="navbar" class="navbar-collapse collapse">
+          <ul class="nav navbar-nav navbar-right">
+            <li><a href="#">Help</a></li>
+            <li><a href="#">Logout</a></li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+    <div class="container-fluid" style="background-image: url('coverpic.jpg');padding-bottom: 7px">
+	    <div id = "latestReadingbox" class="jumbotron container" style="padding-bottom: 20px;margin-bottom: 20px">
+	    	<div class="container" style="padding-top: 5px;">
+	    		<center><h3 style="font-family: calibri"> <strong>Live Data Channel</strong></h3></center>
+		        <table class="table" >
+		    		<thead>
+		      			<tr>
+		        			<th>Date (dd-mm-yyyy)</th>
+		        			<th>Time in 24-hr format (hh:mm:ss) </th>
+		        			<th>Label</th>
+		        			<th>Latest Value</th>
+		      				</tr>
+		    		</thead>
+		    		<tbody>
+		      			<tr>
+		        			<td id = "received_date">01-01-1970</td>
+		        			<td id = "received_time">00:00:00</td>
+		        			<td>
+		        				 <div class="dropdown">
+									  <button id = "disp_reg"  class="btn btn-primary">Select one <span class="caret"></span></button>
+									  <div id="register_list" class="dropdown-content">
+									    
+									  </div>
+									  <script type="text/javascript"> document.getElementById('register_list').innerHTML=g; </script>
+									</div> 
+		        			</td>
+		        			<td id="latestvalue">
+		        				0.00
+		        			</td>
+		      			</tr>
+		      		</tbody>
+		      	</table>
+	      	</div>
+	      	<center>
+	      		<div id ="latestReadingInfoBox" class="alert alert-info" style="margin-bottom: 0px">
+	  				<strong>Info!</strong> Preparing to fetch latest readings...
+				</div>
+			</center>
+		</div>
+	</div>
+	
+	<div class="row">
+		<div class="col-md-6">
+			<button style="background-color:#fff;padding: 8px;border-color: #fff #fff #000 #fff ;border-radius:4px;border-style:solid;float:right">
+				<h4><strong>24 Hour Data</strong></h4>
+			</button>
+		</div>
+		
+		<div class="col-md-6">
+			<button style="background-color:#fff;padding: 8px;border-color: #fff #fff #fff #fff ;border-radius:4px;border-style:solid;float:left">
+				<h4>Data by Date</h4>
+			</button>
+		</div>
+	</div>
+	<div class="row" style="">
+		<div id="last24hrtable" class="col-md-6" style="padding: 50px">
+			<table id = 'latest24hrdata' class='table table-striped'><thead><tr><th>Date (dd-mm-yyyy)</th><th>Time (hh:mm:ss)</th><th>Value</th></tr></thead><tbody id ='tablebody'>
+			</tbody>
+		</table>
+		</div>
+		<div id="chartContainer" class="col-md-6" style="width:100vh;height:80vh;padding-top: 7vh;padding-right:5vh ">
+		</div>
+	</div>
+	<div class = "row" style="background-color: #000;height: 100px;margin-top: 2vh;display: none">
+		
+	</div>
+
+</body>
+</html>
